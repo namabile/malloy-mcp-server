@@ -24,7 +24,6 @@ Implementation details of the Malloy MCP server:
 - Ignore the schedules and database components of the malloy publishers; these are not relevant to the MCP server
 - The MCP server should expose the following tools:
 -- Execute Malloy query: using the create malloy query prompt if needed, run a query on the malloy publisher
--- Analyze data: this should use the polars python package and any other relevant charting librarires / python packages to analyze the data returned by execute malloy query
 - The MCP server should expose the following prompts:
 -- Create Malloy query: this prompt should use the malloy documentation and best practices to create help the LLM write malloy queries using the available sources and views that the publisher exposes
 - The server should handle errors; when returning errors to the client, provide back a english description of the error and the context that was passed to the publisher so that the LLM can figure out how to retry its request

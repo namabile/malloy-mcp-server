@@ -1,68 +1,96 @@
 """Tool for executing Malloy queries via the publisher API."""
 
-from typing import Any, Dict
-from molloy_publisher_client import MalloyAPIClient, QueryParams, QueryResult
-from mcp.server.context import Context
-from mcp.server.errors import ToolError
-from mcp.server.fastmcp import FastMCP
+from typing import Any, cast
+import json
 
-# Initialize MCP and client
-mcp = FastMCP("Malloy Query Executor")
-client = MalloyAPIClient("http://localhost:4000")
-PROJECT_NAME = "home"
+from malloy_publisher_client import MalloyAPIClient, QueryParams, QueryResult
+from mcp.server.fastmcp import Context
+from pydantic import BaseModel
+
+from ..server import mcp
+
+
+class QueryInput(BaseModel):
+    """Input parameters for query execution."""
+    query: str
+    model_path: str
+
+
+class QueryOutput(BaseModel):
+    """Output from query execution."""
+    data_styles: dict[str, Any]
+    model_def: dict[str, Any]
+    query_result: list[dict[str, Any]]
 
 
 @mcp.tool()
 async def execute_malloy_query(
-    query: str, model_path: str, ctx: Context
-) -> Dict[str, Any]:
+    params: QueryInput,
+    ctx: Context,
+) -> QueryOutput:
     """Execute a Malloy query.
 
     Args:
-        query: The Malloy query to execute
-        model_path: Path to the Malloy model to query against
+        params: The query parameters including query string and model path
         ctx: The MCP context for logging and progress tracking
 
     Returns:
-        The query results as a dictionary containing:
-        - data_styles: Data style for rendering query results
-        - model_def: Malloy model definition
-        - query_result: Malloy query results
+        The query results including data styles and model definition
 
     Raises:
-        ToolError: If query execution fails
+        ValueError: If query execution fails
     """
     try:
         # Log query execution start
-        await ctx.info(f"Executing query against model {model_path}")
+        await ctx.info(f"Executing query against model {params.model_path}")
+        await ctx.report_progress(0, 2)
+
+        # Get client from lifespan context
+        app_ctx = ctx.request_context.lifespan_context
+
+        # Extract package name from model path (first component)
+        package_name = params.model_path.split("/")[0]
 
         # Execute query via publisher client
-        params = QueryParams(
-            project_name=PROJECT_NAME,
-            package_name="home",  # Default package name
-            path=model_path,
-            query=query,
+        query_params = QueryParams(
+            project_name="home",  # Default project name
+            package_name=package_name,
+            path=params.model_path,
+            query=params.query,
         )
-        result: QueryResult = client.execute_query(params)
+
+        # Execute query
+        await ctx.report_progress(1, 2)
+        result = cast(QueryResult, await app_ctx.client.execute_query(params=query_params))
+
+        # Parse JSON responses
+        data_styles = json.loads(result.data_styles) if result.data_styles else {}
+        model_def = json.loads(result.model_def) if result.model_def else {}
+        query_result = json.loads(result.query_result) if result.query_result else []
 
         # Log successful execution
-        await ctx.info(f"Query executed successfully")
+        await ctx.info("Query executed successfully")
+        await ctx.report_progress(2, 2)
 
-        # Convert QueryResult to Dict[str, Any]
-        return {
-            "data_styles": result.data_styles,
-            "model_def": result.model_def,
-            "query_result": result.query_result,
-        }
+        return QueryOutput(
+            data_styles=data_styles,
+            model_def=model_def,
+            query_result=query_result,
+        )
 
     except Exception as e:
-        error_msg = f"Failed to execute Malloy query: {e!s}"
-        await ctx.error(error_msg)
-        raise ToolError(
-            message=error_msg,
-            context={
-                "query": query,
-                "model_path": model_path,
-                "project": PROJECT_NAME,
-            },
-        ) from e
+        error_msg = f"Failed to execute Malloy query: {str(e)}"
+        error_context = {
+            "query": params.query,
+            "model_path": params.model_path,
+            "project": "home",
+            "package": package_name,
+        }
+        await ctx.error(f"{error_msg}\nContext: {error_context}")
+        raise ValueError(error_msg) from None
+
+
+# Export the tool function
+ExecuteMalloyQueryTool = execute_malloy_query
+
+__all__ = ["ExecuteMalloyQueryTool"]

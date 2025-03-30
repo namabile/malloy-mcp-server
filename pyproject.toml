@@ -7,12 +7,8 @@ requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.6.0",
-    "malloy>=2024.1096",
-    "molloy-publisher-client==0.1.1",  # Type stubs included
-    "polars>=0.20.7",
+    "malloy-publisher-client==0.1.1",  # Type stubs included
     "pydantic>=2.6.0",
-    "plotly>=5.19.0",  # For interactive charts
-    "pandas>=2.2.0",   # Required for some data operations
 ]
 
 [project.optional-dependencies]
@@ -21,7 +17,6 @@ dev = [
     "mypy>=1.8.0",
     "ruff>=0.3.0",
     "mcp[cli]>=1.6.0",
-    "plotly-stubs>=0.0.5"  # Type stubs for plotly
 ]
 
 [tool.black]

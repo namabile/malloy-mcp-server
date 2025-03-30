@@ -27,7 +27,7 @@ class MalloyModelMetadata(BaseModel):
     queries: list[str] = Field(
         default_factory=list, description="Named queries defined in the model"
     )
-    schema: dict[str, dict[str, Any]] = Field(
+    model_schema: dict[str, dict[str, Any]] = Field(
         default_factory=dict, description="Schema information for sources"
     )
 
