@@ -1,10 +1,69 @@
 [project]
 name = "malloy-mcp-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server for Malloy data analysis and query execution"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.28.1",
-    "mcp[cli]>=1.6.0",
+    "mcp>=1.6.0",
+    "malloy>=2024.1096",
+    "molloy-publisher-client==0.1.1",  # Type stubs included
+    "polars>=0.20.7",
+    "pydantic>=2.6.0",
+    "plotly>=5.19.0",  # For interactive charts
+    "pandas>=2.2.0",   # Required for some data operations
 ]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.2.0",
+    "mypy>=1.8.0",
+    "ruff>=0.3.0",
+    "mcp[cli]>=1.6.0",
+    "plotly-stubs>=0.0.5"  # Type stubs for plotly
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = "\\.pyi?$"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B"   # flake8-bugbear
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "mcp.*"
+]
+ignore_missing_imports = true
