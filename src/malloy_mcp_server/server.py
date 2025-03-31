@@ -1,6 +1,5 @@
 """MCP server for executing Malloy queries."""
 
-import json
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -123,10 +122,10 @@ def connect_to_publisher(base_url: str | None = None) -> MalloyAPIClient:
 @mcp.resource("packages://{project_name}")
 def get_packages(project_name: str) -> list[Package]:
     """Get list of available packages.
-    
+
     Args:
         project_name: Name of the project
-        
+
     Returns:
         list[Package]: List of Malloy packages in the project
     """
@@ -142,11 +141,11 @@ def get_packages(project_name: str) -> list[Package]:
 @mcp.resource("models://{project_name}/{package_name}")
 def get_models(project_name: str, package_name: str) -> list[Model]:
     """Get models for a package.
-    
+
     Args:
         project_name: Name of the project
         package_name: Name of the package
-        
+
     Returns:
         list[Model]: List of Malloy models in the package
     """
@@ -158,12 +157,12 @@ def get_models(project_name: str, package_name: str) -> list[Model]:
 @mcp.resource("model://{project_name}/{package_name}/{model_path}")
 def get_model(project_name: str, package_name: str, model_path: str) -> CompiledModel:
     """Get details for a specific model.
-    
+
     Args:
         project_name: Name of the project
         package_name: Name of the package
         model_path: Path to the model
-        
+
     Returns:
         CompiledModel: The compiled Malloy model
     """
@@ -174,13 +173,13 @@ def get_model(project_name: str, package_name: str, model_path: str) -> Compiled
 
 
 @asynccontextmanager
-async def app_lifespan(app: FastMCP) -> AsyncIterator[dict[str, Any]]:
+async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
     """Manage application lifecycle and initialize resources."""
     client = None
     try:
         client = connect_to_publisher()
         projects = client.list_projects()
-        
+
         if not projects:
             raise MalloyError(ERROR_NO_PROJECTS)
 
@@ -211,7 +210,7 @@ async def app_lifespan(app: FastMCP) -> AsyncIterator[dict[str, Any]]:
             "client": client,
             "project_name": projects[0].name,
         }
-        
+
         yield context
 
     except Exception as e:
@@ -233,4 +232,4 @@ async def app_lifespan(app: FastMCP) -> AsyncIterator[dict[str, Any]]:
 mcp.settings.lifespan = app_lifespan
 
 # Export the FastMCP instance
-__all__ = ["mcp", "create_malloy_query", "execute_malloy_query"]
+__all__ = ["create_malloy_query", "execute_malloy_query", "mcp"]
