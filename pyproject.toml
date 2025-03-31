@@ -7,7 +7,7 @@ name = "malloy-mcp-server"
 version = "0.1.0"
 description = "MCP server for executing Malloy queries"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 authors = [
     { name = "Nick Amabile", email = "nick.amabile@gmail.com" },
@@ -31,10 +31,10 @@ dev = [
 
 [tool.black]
 line-length = 88
-target-version = ["py310"]
+target-version = ["py311"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -49,7 +49,7 @@ addopts = "-v --cov=malloy_mcp_server --cov-report=term-missing"
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 select = ["E", "F", "B", "I"]
 ignore = []
 
