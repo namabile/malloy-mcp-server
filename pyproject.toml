@@ -21,11 +21,8 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "fastapi>=0.110.0",
     "malloy-publisher-client>=0.1.1",
     "mcp>=1.6.0",
-    "pydantic>=2.6.3",
-    "uvicorn>=0.27.1",
 ]
 
 [project.urls]
@@ -72,6 +69,8 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+
+[tool.ruff.lint]
 select = [
     "A",
     "ARG",
@@ -99,8 +98,6 @@ select = [
     "W",
     "YTT",
 ]
-
-[tool.ruff.lint]
 ignore = [
     # Allow non-abstract empty methods in abstract base classes
     "B027",
