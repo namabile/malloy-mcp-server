@@ -7,7 +7,7 @@ import pytest
 from malloy_publisher_client import QueryParams
 
 from malloy_mcp_server.errors import MalloyError
-from malloy_mcp_server.server import connect_to_publisher, execute_malloy_query
+from malloy_mcp_server.server import execute_malloy_query
 
 
 @pytest.fixture

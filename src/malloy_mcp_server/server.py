@@ -3,7 +3,7 @@
 import logging
 import os
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from typing import Any, cast
 
 from malloy_publisher_client import MalloyAPIClient, QueryParams
@@ -74,6 +74,9 @@ async def execute_malloy_query(
 ) -> Any:
     """Execute a Malloy query.
 
+    This tool connects to the Malloy Publisher API (default: http://localhost:4000/api/v0)
+    and executes a Malloy query against a model.
+
     Args:
         project_name: The name of the project, defaults to "home"
         package_name: The name of the package containing the model
@@ -85,10 +88,38 @@ async def execute_malloy_query(
         version_id: Version ID of the package
 
     Returns:
-        Any: Query execution result
+        Any: Query execution result with structure:
+            {
+                "data_styles": Object containing style information
+                "model_def": Object containing model definition
+                "query_result": Array of result objects
+            }
 
     Raises:
         MalloyError: If query execution fails or parameters are invalid
+            Error codes:
+            - QUERY_EXECUTION_ERROR: Error during query execution
+            - CONNECTION_ERROR: Error connecting to Malloy Publisher API
+
+    Example:
+        ```python
+        # Example 1: Direct query
+        result = await execute_malloy_query(
+            project_name="home",
+            package_name="sales",
+            model_path="sales.malloy",
+            query="query: orders -> { aggregate: count() }"
+        )
+
+        # Example 2: Named query
+        result = await execute_malloy_query(
+            project_name="home",
+            package_name="sales",
+            model_path="sales.malloy",
+            source_name="orders",
+            query_name="top_customers"
+        )
+        ```
     """
     # Input validation
     if query and query_name:
@@ -273,7 +304,19 @@ def get_publisher_url() -> str:
 
 
 def connect_to_publisher(base_url: str | None = None) -> MalloyAPIClient:
-    """Connect to the Malloy Publisher API."""
+    """Connect to the Malloy Publisher API.
+
+    This function creates a client connected to the Malloy Publisher API.
+    The API URL defaults to http://localhost:4000/api/v0 but can be
+    overridden with the MALLOY_PUBLISHER_URL environment variable.
+
+    Returns:
+        MalloyAPIClient: A client connected to the Malloy Publisher API
+
+    Raises:
+        MalloyError: If connection to the Malloy Publisher API fails
+            Error code: CONNECTION_ERROR
+    """
     url = base_url if base_url is not None else get_publisher_url()
 
     try:
@@ -307,23 +350,50 @@ def get_projects() -> list[Project]:
 
 @asynccontextmanager
 async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
-    """Manage application lifecycle and initialize resources."""
+    """Control MCP server initialization and shutdown.
+
+    This context manager connects to the Malloy Publisher API on startup
+    and closes the connection on shutdown.
+
+    The Malloy Publisher API should be running at http://localhost:4000/api/v0
+    or at the URL specified in the MALLOY_PUBLISHER_URL environment variable.
+
+    Args:
+        _app: The FastMCP app instance
+
+    Yields:
+        dict[str, Any]: Context for the lifespan of the application
+        
+    Raises:
+        MalloyError: If initialization fails with these possible error codes:
+            - CONNECTION_ERROR: Failed to connect to Malloy Publisher
+            - NOT_FOUND: No projects, packages, or models found
+    """
     client = None
     try:
         client = connect_to_publisher()
         projects = client.list_projects()
 
         if not projects:
-            raise MalloyError(ERROR_NO_PROJECTS)
+            raise MalloyError(
+                message=ERROR_NO_PROJECTS,
+                code="NOT_FOUND"
+            )
 
         # Get packages for the first project
         try:
             packages = client.list_packages(projects[0].name)
             if not packages:
-                raise MalloyError(ERROR_NO_PACKAGES)
+                raise MalloyError(
+                    message=ERROR_NO_PACKAGES,
+                    code="NOT_FOUND"
+                )
         except Exception as e:
             error_msg = f"Failed to list packages: {e!s}"
-            raise MalloyError(error_msg) from e
+            raise MalloyError(
+                message=error_msg,
+                code="NOT_FOUND"
+            ) from e
 
         # Get models for each package
         models = []
@@ -337,7 +407,10 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
                 )
 
         if not models:
-            raise MalloyError(ERROR_NO_MODELS)
+            raise MalloyError(
+                message=ERROR_NO_MODELS,
+                code="NOT_FOUND"
+            )
 
         context = {
             "client": client,
@@ -348,17 +421,18 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
     except Exception as e:
         error_msg = format_error(
-            e if isinstance(e, MalloyError) else MalloyError(str(e))
+            e if isinstance(e, MalloyError) else MalloyError(
+                message=str(e), 
+                code="APP_LIFECYCLE_ERROR"
+            )
         )
         logger.error(error_msg)
         if client:
             client.close()
         raise
-
     finally:
         if client:
-            with suppress(Exception):
-                client.close()
+            client.close()
 
 
 # Set lifespan
