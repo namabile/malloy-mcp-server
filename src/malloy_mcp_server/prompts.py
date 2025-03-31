@@ -1,42 +1,35 @@
-"""Prompts for the Malloy MCP Server."""
+"""Prompt generation for Malloy queries."""
 
-from mcp.types import PromptMessage, TextContent
+from mcp.types import TextContent
 
-from .server import mcp
+from malloy_mcp_server.server import mcp
 
 
-@mcp.prompt()
-def create_malloy_query() -> list[PromptMessage]:
-    """Create a basic prompt to help write Malloy queries."""
+@mcp.prompt("malloy")
+def create_malloy_query(message: str) -> TextContent:
+    """Create a Malloy query from a natural language prompt."""
     malloy_examples = """
     # Basic Malloy query examples:
-    
     # Example 1: Simple aggregation
     source: orders is table('orders.parquet') extend {
       measure: order_count is count()
       measure: total_revenue is sum(amount)
     }
-    
     query: orders -> {
       aggregate: order_count, total_revenue
     }
-    
     # Example 2: Group by with aggregation
     query: orders -> {
-      group_by: status
+      group_by: category
       aggregate: order_count, total_revenue
     }
     """
-
-    prompt_intro = (
-        "You are creating a Malloy query. Use the examples below as guidance."
+    return TextContent(
+        type="text",
+        text=f"Based on these Malloy examples:\n{malloy_examples}\n"
+        f"Create a Malloy query for: {message}",
     )
 
-    return [
-        PromptMessage(
-            role="user",
-            content=TextContent(
-                type="text", text=f"{prompt_intro}\n\n{malloy_examples}"
-            ),
-        )
-    ]
+
+# Export prompts
+__all__ = ["create_malloy_query"]

@@ -1,13 +1,13 @@
 """Resource registration for the Malloy MCP Server."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from malloy_publisher_client import Model, Package, Project
 from mcp.server.fastmcp import FastMCP
 
 
 def register_resources(
-    server: FastMCP, project: Project, packages: List[Package], models: List[Model]
+    server: FastMCP, project: Project, packages: list[Package], models: list[Model]
 ) -> None:
     """Register all Malloy resources with the MCP server.
 
@@ -20,7 +20,7 @@ def register_resources(
 
     # Register project metadata
     @server.resource("malloy://project/home/metadata")
-    def get_project_metadata() -> Dict[str, Any]:
+    def get_project_metadata() -> dict[str, Any]:
         """Get metadata about the Malloy project and its contents."""
         return {
             **project.model_dump(),
@@ -38,7 +38,7 @@ def register_resources(
 
     # Health check resource
     @server.resource("malloy://healthcheck")
-    def get_healthcheck() -> Dict[str, Any]:
+    def get_healthcheck() -> dict[str, Any]:
         """Get server health status."""
         return {
             "status": "healthy",
@@ -56,7 +56,7 @@ def register_package(server: FastMCP, package: Package) -> None:
     resource_path = f"malloy://project/home/package/{package.name}"
 
     @server.resource(resource_path)
-    def get_package() -> Dict[str, Any]:
+    def get_package() -> dict[str, Any]:
         """Get metadata for a specific package."""
         return package.model_dump()
 
@@ -71,6 +71,6 @@ def register_model(server: FastMCP, model: Model) -> None:
     resource_path = f"malloy://project/home/model/{model.path}"
 
     @server.resource(resource_path)
-    def get_model() -> Dict[str, Any]:
+    def get_model() -> dict[str, Any]:
         """Get metadata for a specific model."""
         return model.model_dump()

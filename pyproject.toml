@@ -5,53 +5,165 @@ build-backend = "hatchling.build"
 [project]
 name = "malloy-mcp-server"
 version = "0.1.0"
-description = "MCP server for executing Malloy queries"
+description = "MCP server for Malloy queries"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+keywords = []
 authors = [
     { name = "Nick Amabile", email = "nick.amabile@gmail.com" },
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
 dependencies = [
-    "mcp>=0.1.0",
-    "malloy-publisher-client>=0.1.1",
-    "pydantic>=2.0.0",
-    "uvicorn>=0.24.0",
+    "fastapi>=0.110.0",
+    "malloy-publisher-client>=0.1.0",
+    "mcp-server>=0.1.0",
+    "pydantic>=2.6.3",
+    "uvicorn>=0.27.1",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "black>=23.0.0",
-    "mypy>=1.0.0",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "ruff>=0.1.0",
+[project.urls]
+Documentation = "https://github.com/namabile/malloy-mcp-server#readme"
+Issues = "https://github.com/namabile/malloy-mcp-server/issues"
+Source = "https://github.com/namabile/malloy-mcp-server"
+
+[tool.hatch.version]
+path = "src/malloy_mcp_server/__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = [
+    "coverage[toml]>=6.5",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "black>=24.2.0",
+    "mypy>=1.8.0",
+    "ruff>=0.3.0",
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
+lint = ["black .", "ruff check .", "mypy ."]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/malloy_mcp_server"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/docs",
+    "/tests",
 ]
 
 [tool.black]
-line-length = 88
 target-version = ["py311"]
+line-length = 88
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FBT",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+
+[tool.ruff.lint]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls, like `dict.get(... True)`
+    "FBT003",
+    # Ignore checks for possible passwords
+    "S105", "S106", "S107",
+    # Ignore complexity checking
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+]
+unfixable = [
+    # Don't touch unused imports
+    "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["malloy_mcp_server"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+source_pkgs = ["malloy_mcp_server", "tests"]
+branch = true
+parallel = true
+omit = [
+    "src/malloy_mcp_server/__about__.py",
+]
+
+[tool.coverage.paths]
+malloy_mcp_server = ["src/malloy_mcp_server", "*/malloy-mcp-server/src/malloy_mcp_server"]
+tests = ["tests", "*/malloy-mcp-server/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
 check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
 
 [tool.pytest.ini_options]
+addopts = "--cov --cov-report=term-missing"
 asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=malloy_mcp_server --cov-report=term-missing"
-
-[tool.ruff]
-line-length = 88
-target-version = "py311"
-select = ["E", "F", "B", "I"]
-ignore = []
-
-[tool.ruff.per-file-ignores]
-"__init__.py" = ["F401"]

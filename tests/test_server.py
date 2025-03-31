@@ -1,7 +1,6 @@
 """Tests for the Malloy MCP Server."""
 
 from unittest.mock import MagicMock, patch
-from typing import Any
 
 import pytest
 from malloy_publisher_client import Model, Package, Project
@@ -27,9 +26,7 @@ def mock_package() -> Package:
 def mock_model() -> Model:
     """Create a mock model."""
     return Model(
-        packageName="test_package",
-        path="test_model.malloynb",
-        type=ModelType.NOTEBOOK
+        packageName="test_package", path="test_model.malloynb", type=ModelType.NOTEBOOK
     )
 
 
@@ -45,13 +42,13 @@ async def test_app_lifespan_success(
     # Setup mock API client instance
     mock_api_instance = MagicMock()
     mock_api_client.return_value = mock_api_instance
-    
+
     # Configure mock responses
     mock_api_instance.list_projects.return_value = [mock_project]
     mock_api_instance.list_packages.return_value = [mock_package]
     mock_api_instance.list_models.return_value = [mock_model]
     mock_api_instance.get_model.return_value = mock_model
-    
+
     async with app_lifespan(mcp) as context:
         # Verify context is properly initialized
         assert context["client"] is not None
@@ -67,7 +64,7 @@ async def test_app_lifespan_connection_error(
     # Setup mock API client instance
     mock_api_instance = MagicMock()
     mock_api_client.return_value = mock_api_instance
-    
+
     # Configure error response
     mock_api_instance.list_projects.side_effect = Exception("Connection failed")
 
@@ -75,7 +72,9 @@ async def test_app_lifespan_connection_error(
         async with app_lifespan(mcp):
             pass
 
-    assert "Failed to connect to Malloy Publisher: Connection failed" in str(exc_info.value)
+    assert "Failed to connect to Malloy Publisher: Connection failed" in str(
+        exc_info.value
+    )
 
 
 @pytest.mark.asyncio
@@ -87,7 +86,7 @@ async def test_app_lifespan_no_projects(
     # Setup mock API client instance
     mock_api_instance = MagicMock()
     mock_api_client.return_value = mock_api_instance
-    
+
     # Configure empty response
     mock_api_instance.list_projects.return_value = []
 
@@ -108,7 +107,7 @@ async def test_app_lifespan_package_error(
     # Setup mock API client instance
     mock_api_instance = MagicMock()
     mock_api_client.return_value = mock_api_instance
-    
+
     # Configure responses
     mock_api_instance.list_projects.return_value = [mock_project]
     mock_api_instance.list_packages.side_effect = Exception("Failed to list packages")
@@ -131,7 +130,7 @@ async def test_app_lifespan_no_models(
     # Setup mock API client instance
     mock_api_instance = MagicMock()
     mock_api_client.return_value = mock_api_instance
-    
+
     # Configure responses
     mock_api_instance.list_projects.return_value = [mock_project]
     mock_api_instance.list_packages.return_value = [mock_package]
