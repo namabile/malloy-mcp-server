@@ -1,1 +1,1 @@
-"""Models for the Malloy MCP server.""" 
+"""Models for the Malloy MCP server."""
