@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from malloy_mcp_server.errors import MalloyError
-from malloy_mcp_server.tools import execute_malloy_query
+from malloy_mcp_server.server import execute_malloy_query
 
 
 @pytest.fixture
