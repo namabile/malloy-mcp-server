@@ -1,13 +1,14 @@
 """Tests for the query executor."""
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from malloy_publisher_client import QueryParams
 from mcp.server.fastmcp import Context
 
 from malloy_mcp_server.errors import MalloyError
-from malloy_mcp_server.server import execute_malloy_query
+from malloy_mcp_server.server import execute_malloy_query, connect_to_publisher
 
 
 @pytest.fixture
@@ -30,13 +31,15 @@ def mock_ctx(mock_context: dict[str, Any]) -> Context:
 
 
 @pytest.mark.asyncio
+@patch("malloy_mcp_server.server.connect_to_publisher")
 async def test_successful_query_execution(
+    mock_connect_to_publisher: MagicMock,
     mock_client: MagicMock,
     mock_query_result: dict[str, Any],
-    mock_ctx: Context,
 ) -> None:
     """Test successful query execution."""
     # Configure mock response
+    mock_connect_to_publisher.return_value = mock_client
     mock_client.execute_query.return_value = mock_query_result
 
     # Execute query with new function signature
@@ -45,27 +48,30 @@ async def test_successful_query_execution(
         package_name="test_package",
         model_path="test_model.malloy",
         query="test_query",
-        ctx=mock_ctx,
     )
 
     # Verify result
     assert result is not None
     mock_client.execute_query.assert_called_once_with(
-        project_name="test_project",
-        package_name="test_package",
-        model_path="test_model.malloy",
-        query="test_query",
+        QueryParams(
+            path="test_model.malloy",
+            project_name="test_project",
+            package_name="test_package",
+            query="test_query",
+        )
     )
 
 
 @pytest.mark.asyncio
+@patch("malloy_mcp_server.server.connect_to_publisher")
 async def test_query_execution_with_query_name(
+    mock_connect_to_publisher: MagicMock,
     mock_client: MagicMock,
     mock_query_result: dict[str, Any],
-    mock_ctx: Context,
 ) -> None:
     """Test successful query execution with query name."""
     # Configure mock response
+    mock_connect_to_publisher.return_value = mock_client
     mock_client.execute_query.return_value = mock_query_result
 
     # Execute query with new function signature using query_name
@@ -75,27 +81,60 @@ async def test_query_execution_with_query_name(
         model_path="test_model.malloy",
         source_name="test_source",
         query_name="test_named_query",
-        ctx=mock_ctx,
     )
 
     # Verify result
     assert result is not None
     mock_client.execute_query.assert_called_once_with(
-        project_name="test_project",
-        package_name="test_package",
-        model_path="test_model.malloy",
-        source_name="test_source",
-        query_name="test_named_query",
+        QueryParams(
+            path="test_model.malloy",
+            project_name="test_project",
+            package_name="test_package",
+            source_name="test_source",
+            query_name="test_named_query",
+        )
     )
 
 
 @pytest.mark.asyncio
-async def test_query_execution_error(
+@patch("malloy_mcp_server.server.connect_to_publisher")
+async def test_model_path_only_execution(
+    mock_connect_to_publisher: MagicMock,
     mock_client: MagicMock,
-    mock_ctx: Context,
+    mock_query_result: dict[str, Any],
+) -> None:
+    """Test successful execution with only model path provided."""
+    # Configure mock response
+    mock_connect_to_publisher.return_value = mock_client
+    mock_client.execute_query.return_value = mock_query_result
+
+    # Execute query with only model path
+    result = await execute_malloy_query(
+        project_name="test_project",
+        package_name="test_package",
+        model_path="test_model.malloy",
+    )
+
+    # Verify result
+    assert result is not None
+    mock_client.execute_query.assert_called_once_with(
+        QueryParams(
+            path="test_model.malloy",
+            project_name="test_project",
+            package_name="test_package",
+        )
+    )
+
+
+@pytest.mark.asyncio
+@patch("malloy_mcp_server.server.connect_to_publisher")
+async def test_query_execution_error(
+    mock_connect_to_publisher: MagicMock,
+    mock_client: MagicMock,
 ) -> None:
     """Test handling of query execution errors."""
     # Configure error response
+    mock_connect_to_publisher.return_value = mock_client
     mock_client.execute_query.side_effect = Exception("Query failed")
 
     # Execute query and verify error
@@ -105,35 +144,13 @@ async def test_query_execution_error(
             package_name="test_package",
             model_path="test_model.malloy",
             query="test_query",
-            ctx=mock_ctx,
         )
 
     assert "Failed to execute query: Query failed" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
-async def test_query_execution_validation_error_missing_query(
-    mock_ctx: Context,
-) -> None:
-    """Test validation error when neither query nor query_name is provided."""
-    with pytest.raises(MalloyError) as exc_info:
-        await execute_malloy_query(
-            project_name="test_project",
-            package_name="test_package",
-            model_path="test_model.malloy",
-            ctx=mock_ctx,
-        )
-
-    assert (
-        "Either 'query' or 'query_name' parameter must be provided"
-        in str(exc_info.value)
-    )
-
-
-@pytest.mark.asyncio
-async def test_query_execution_validation_error_query_conflict(
-    mock_ctx: Context,
-) -> None:
+async def test_query_execution_validation_error_query_conflict() -> None:
     """Test validation error when both query and query_name are provided."""
     with pytest.raises(MalloyError) as exc_info:
         await execute_malloy_query(
@@ -142,7 +159,6 @@ async def test_query_execution_validation_error_query_conflict(
             model_path="test_model.malloy",
             query="test_query",
             query_name="test_named_query",
-            ctx=mock_ctx,
         )
 
     assert (
@@ -152,9 +168,7 @@ async def test_query_execution_validation_error_query_conflict(
 
 
 @pytest.mark.asyncio
-async def test_query_execution_validation_error_missing_source_name(
-    mock_ctx: Context,
-) -> None:
+async def test_query_execution_validation_error_missing_source_name() -> None:
     """Test validation error when query_name is provided without source_name."""
     with pytest.raises(MalloyError) as exc_info:
         await execute_malloy_query(
@@ -162,7 +176,6 @@ async def test_query_execution_validation_error_missing_source_name(
             package_name="test_package",
             model_path="test_model.malloy",
             query_name="test_named_query",
-            ctx=mock_ctx,
         )
 
     assert (

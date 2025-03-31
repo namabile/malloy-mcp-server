@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import Any, cast
 
-from malloy_publisher_client import MalloyAPIClient
+from malloy_publisher_client import MalloyAPIClient, QueryParams
 from malloy_publisher_client.api_client import APIError
 from malloy_publisher_client.models import CompiledModel, Model, Package, Project
 from mcp.server.fastmcp import FastMCP
@@ -111,9 +111,9 @@ async def execute_malloy_query(
         # Execute the query based on the provided parameters
         # Clean up empty parameters
         params = {
+            "path": model_path,
             "project_name": project_name,
             "package_name": package_name,
-            "model_path": model_path,
             "query": query,
             "source_name": source_name,
             "query_name": query_name,
@@ -122,8 +122,8 @@ async def execute_malloy_query(
         # Only include non-empty parameters
         params = {k: v for k, v in params.items() if v}
 
-        # Pass parameters directly to execute_query
-        result = client.execute_query(**params)  # type: ignore[arg-type]
+        # Pass parameters as QueryParams object
+        result = client.execute_query(QueryParams(**params))
         return result
     except Exception as e:
         error_msg = (
