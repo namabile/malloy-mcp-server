@@ -72,8 +72,6 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-
-[tool.ruff.lint]
 select = [
     "A",
     "ARG",
@@ -101,6 +99,8 @@ select = [
     "W",
     "YTT",
 ]
+
+[tool.ruff.lint]
 ignore = [
     # Allow non-abstract empty methods in abstract base classes
     "B027",
