@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from malloy_publisher_client import MalloyAPIClient
 from malloy_publisher_client.api_client import APIError
-from malloy_publisher_client.models import CompiledModel
+from malloy_publisher_client.models import CompiledModel, Model, Package
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
@@ -121,68 +121,60 @@ def connect_to_publisher(base_url: str | None = None) -> MalloyAPIClient:
 
 # Resources
 @mcp.resource("packages://{project_name}")
-def get_packages(project_name: str) -> str:
-    """Get packages for a project."""
-    client = MalloyAPIClient(get_publisher_url())
-    try:
-        packages = client.list_packages(project_name)
-        return json.dumps(
-            [
-                {"name": pkg.name, "description": pkg.description or ""}
-                for pkg in packages
-            ]
-        )
-    finally:
-        client.close()
+def get_packages(project_name: str) -> list[Package]:
+    """Get list of available packages.
+    
+    Args:
+        project_name: Name of the project
+        
+    Returns:
+        list[Package]: List of Malloy packages in the project
+    """
+    # Access client from the global client instance for simplicity
+    # Note: In a production app, you would use a more robust approach
+    client = connect_to_publisher()
+    packages = client.list_packages(project_name)
+    if not packages:
+        raise MalloyError(ERROR_NO_PACKAGES)
+    return packages
 
 
 @mcp.resource("models://{project_name}/{package_name}")
-def get_models(project_name: str, package_name: str) -> str:
-    """Get models for a package."""
-    client = MalloyAPIClient(get_publisher_url())
-    try:
-        models = client.list_models(project_name, package_name)
-        return json.dumps(
-            [
-                {
-                    "name": model.path,
-                    "type": model.type,
-                    "package_name": model.package_name,
-                }
-                for model in models
-            ]
-        )
-    finally:
-        client.close()
+def get_models(project_name: str, package_name: str) -> list[Model]:
+    """Get models for a package.
+    
+    Args:
+        project_name: Name of the project
+        package_name: Name of the package
+        
+    Returns:
+        list[Model]: List of Malloy models in the package
+    """
+    # Access client from the global client instance for simplicity
+    client = connect_to_publisher()
+    return client.list_models(project_name, package_name)
 
 
 @mcp.resource("model://{project_name}/{package_name}/{model_path}")
-def get_model(project_name: str, package_name: str, model_path: str) -> str:
-    """Get details for a specific model."""
-    client = MalloyAPIClient(get_publisher_url())
-    try:
-        model = cast(
-            CompiledModel, client.get_model(project_name, package_name, model_path)
-        )
-        return json.dumps(
-            {
-                "name": model.path,
-                "type": model.type,
-                "package_name": model.package_name,
-                "malloy_version": model.malloy_version,
-                "data_styles": model.data_styles,
-                "model_def": model.model_def,
-                "sources": [source.model_dump() for source in model.sources],
-                "queries": [query.model_dump() for query in model.queries],
-                "notebook_cells": [cell.model_dump() for cell in model.notebook_cells],
-            }
-        )
-    finally:
-        client.close()
+def get_model(project_name: str, package_name: str, model_path: str) -> CompiledModel:
+    """Get details for a specific model.
+    
+    Args:
+        project_name: Name of the project
+        package_name: Name of the package
+        model_path: Path to the model
+        
+    Returns:
+        CompiledModel: The compiled Malloy model
+    """
+    # Access client from the global client instance for simplicity
+    client = connect_to_publisher()
+    # Explicit cast to ensure type compatibility
+    return cast(CompiledModel, client.get_model(project_name, package_name, model_path))
 
 
 @asynccontextmanager
-async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
+async def app_lifespan(app: FastMCP) -> AsyncIterator[dict[str, Any]]:
     """Manage application lifecycle and initialize resources."""
     client = None
     try:
@@ -215,10 +207,12 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
         if not models:
             raise MalloyError(ERROR_NO_MODELS)
 
-        yield {
+        context = {
             "client": client,
             "project_name": projects[0].name,
         }
+        
+        yield context
 
     except Exception as e:
         error_msg = format_error(
