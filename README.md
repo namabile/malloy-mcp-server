@@ -32,6 +32,23 @@ if __name__ == "__main__":
     mcp.serve()
 ```
 
+### Configuration
+
+The server can be configured using environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MALLOY_PUBLISHER_ROOT_URL` | URL of the Malloy Publisher API | `http://localhost:4000` |
+
+Example:
+```bash
+# Set the publisher URL
+export MALLOY_PUBLISHER_ROOT_URL="http://malloy-publisher:4000"
+
+# Run with custom configuration
+python -m malloy_mcp_server
+```
+
 ### Executing Queries
 
 The server provides an MCP tool for executing Malloy queries:

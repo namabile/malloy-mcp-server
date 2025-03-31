@@ -1,13 +1,14 @@
 """Tests for the Malloy MCP Server."""
 
 from unittest.mock import MagicMock, patch
+import os
 
 import pytest
 from malloy_publisher_client import Model, Package, Project
 from malloy_publisher_client.models import ModelType
 
 from malloy_mcp_server.errors import MalloyError
-from malloy_mcp_server.server import app_lifespan, mcp
+from malloy_mcp_server.server import app_lifespan, connect_to_publisher, mcp
 
 
 @pytest.fixture
@@ -141,3 +142,32 @@ async def test_app_lifespan_no_models(
             pass
 
     assert "No valid models found" in str(exc_info.value)
+
+
+def test_publisher_url_from_env():
+    """Test that the publisher URL can be set via environment variable."""
+    # Store original value
+    orig_url = os.environ.get("MALLOY_PUBLISHER_ROOT_URL")
+    
+    try:
+        # Set environment variable
+        test_url = "http://test-publisher:5000"
+        os.environ["MALLOY_PUBLISHER_ROOT_URL"] = test_url
+        
+        # Mock the MalloyAPIClient to avoid actual connection attempts
+        with patch("malloy_mcp_server.server.MalloyAPIClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            
+            # Call the function
+            connect_to_publisher()
+            
+            # Verify URL was used
+            mock_client_class.assert_called_once_with(test_url)
+    
+    finally:
+        # Restore original environment
+        if orig_url is not None:
+            os.environ["MALLOY_PUBLISHER_ROOT_URL"] = orig_url
+        else:
+            del os.environ["MALLOY_PUBLISHER_ROOT_URL"]

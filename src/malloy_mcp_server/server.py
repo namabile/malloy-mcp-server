@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import Any, cast
@@ -21,6 +22,9 @@ from malloy_mcp_server.errors import MalloyError, format_error
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Default URL for the Malloy Publisher API
+DEFAULT_PUBLISHER_URL = "http://localhost:4000"
+
 # Initialize MCP server with minimal capabilities
 mcp = FastMCP(
     name="malloy-mcp-server",
@@ -33,11 +37,21 @@ mcp = FastMCP(
 )
 
 
-def connect_to_publisher(base_url: str) -> MalloyAPIClient:
+def get_publisher_url() -> str:
+    """Get the Malloy Publisher URL from environment or use default.
+
+    Returns:
+        str: The Malloy Publisher URL
+    """
+    return os.environ.get("MALLOY_PUBLISHER_ROOT_URL", DEFAULT_PUBLISHER_URL)
+
+
+def connect_to_publisher(base_url: str | None = None) -> MalloyAPIClient:
     """Connect to the Malloy Publisher API.
 
     Args:
         base_url: Base URL of the API server
+            Defaults to environment variable or DEFAULT_PUBLISHER_URL
 
     Returns:
         MalloyAPIClient: Connected API client
@@ -45,11 +59,13 @@ def connect_to_publisher(base_url: str) -> MalloyAPIClient:
     Raises:
         MalloyError: If connection fails
     """
+    url = base_url if base_url is not None else get_publisher_url()
+
     try:
-        client = MalloyAPIClient(base_url)
+        client = MalloyAPIClient(url)
         # Test connection with a simple API call
         client.list_projects()
-        logging.info(f"Connected to Malloy Publisher at {base_url}")
+        logging.info(f"Connected to Malloy Publisher at {url}")
         return client
     except Exception as e:
         error_msg = (
@@ -149,7 +165,7 @@ def get_packages(project_name: str) -> str:
     Returns:
         str: JSON string containing package information
     """
-    client = MalloyAPIClient("http://localhost:4000")
+    client = MalloyAPIClient(get_publisher_url())
     try:
         packages = client.list_packages(project_name)
         return json.dumps(
@@ -173,7 +189,7 @@ def get_models(project_name: str, package_name: str) -> str:
     Returns:
         str: JSON string containing model information
     """
-    client = MalloyAPIClient("http://localhost:4000")
+    client = MalloyAPIClient(get_publisher_url())
     try:
         models = client.list_models(project_name, package_name)
         return json.dumps(
@@ -202,7 +218,7 @@ def get_model(project_name: str, package_name: str, model_path: str) -> str:
     Returns:
         str: JSON string containing model details
     """
-    client = MalloyAPIClient("http://localhost:4000")
+    client = MalloyAPIClient(get_publisher_url())
     try:
         # Cast the result to CompiledModel since get_model returns a compiled model
         model = cast(
@@ -241,7 +257,7 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
     client = None
     try:
         # Connect to Malloy publisher
-        client = connect_to_publisher("http://localhost:4000")
+        client = connect_to_publisher()
 
         # Get first project
         projects = client.list_projects()
