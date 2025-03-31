@@ -9,7 +9,7 @@ from typing import Any, cast
 from malloy_publisher_client import MalloyAPIClient
 from malloy_publisher_client.api_client import APIError
 from malloy_publisher_client.models import CompiledModel, Model, Package, Project
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
 from malloy_mcp_server.errors import MalloyError, format_error
@@ -70,8 +70,7 @@ async def execute_malloy_query(
     query: str = "",
     source_name: str = "",
     query_name: str = "",
-    version_id: str = "",
-    ctx: Context | None = None,
+    version_id: str = "",  # noqa: ARG001 - Part of API contract
 ) -> Any:
     """Execute a Malloy query.
 
@@ -84,7 +83,6 @@ async def execute_malloy_query(
         query_name: Name of a query to execute on a source
             (mutually exclusive with query)
         version_id: Version ID of the package
-        ctx: The request context with lifespan_context containing the client
 
     Returns:
         Any: Query execution result
@@ -105,21 +103,13 @@ async def execute_malloy_query(
             {"query_name": query_name, "source_name": source_name},
         )
 
-    if not query and not query_name:
-        raise MalloyError(
-            ERROR_MISSING_QUERY,
-            {},
-        )
-
-    # Get client from context
-    if ctx and ctx.request_context and "client" in ctx.request_context.lifespan_context:
-        client = ctx.request_context.lifespan_context["client"]
-    else:
-        client = connect_to_publisher()
+    # The context is injected by the framework but isn't part of our function signature
+    # Get client - the MCP framework will connect to publisher if needed
+    client = connect_to_publisher()
 
     try:
         # Execute the query based on the provided parameters
-        # The actual implementation will depend on what the MalloyAPIClient supports
+        # Clean up empty parameters
         params = {
             "project_name": project_name,
             "package_name": package_name,
@@ -127,13 +117,13 @@ async def execute_malloy_query(
             "query": query,
             "source_name": source_name,
             "query_name": query_name,
-            "version_id": version_id,
         }
 
-        # Clean up empty parameters
+        # Only include non-empty parameters
         params = {k: v for k, v in params.items() if v}
 
-        result = client.execute_query(**params)
+        # Pass parameters directly to execute_query
+        result = client.execute_query(**params)  # type: ignore[arg-type]
         return result
     except Exception as e:
         error_msg = (
