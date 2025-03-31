@@ -9,7 +9,7 @@ description = "MCP server for Malloy queries"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-keywords = []
+keywords = ["malloy", "mcp", "server", "query"]
 authors = [
     { name = "Nick Amabile", email = "nick.amabile@gmail.com" },
 ]
@@ -29,6 +29,9 @@ dependencies = [
 Documentation = "https://github.com/namabile/malloy-mcp-server#readme"
 Issues = "https://github.com/namabile/malloy-mcp-server/issues"
 Source = "https://github.com/namabile/malloy-mcp-server"
+
+[project.scripts]
+malloy-mcp-server = "malloy_mcp_server:main"
 
 [tool.hatch.version]
 path = "src/malloy_mcp_server/__about__.py"
