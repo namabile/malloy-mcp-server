@@ -24,6 +24,13 @@ DEFAULT_PUBLISHER_URL = "http://localhost:4000"
 ERROR_NO_PROJECTS = "No projects found"
 ERROR_NO_PACKAGES = "No packages found"
 ERROR_NO_MODELS = "No valid models found"
+ERROR_QUERY_CONFLICT = (
+    "Parameters 'query' and 'query_name' are mutually exclusive - provide only one"
+)
+ERROR_MISSING_SOURCE_NAME = (
+    "Parameter 'source_name' is required when using 'query_name'"
+)
+ERROR_MISSING_QUERY = "Either 'query' or 'query_name' parameter must be provided"
 
 # Initialize MCP server with minimal capabilities
 mcp = FastMCP(
@@ -56,26 +63,77 @@ query: orders -> {
 
 # Tools
 @mcp.tool()
-async def execute_malloy_query(query: str, ctx: Context) -> Any:
+async def execute_malloy_query(
+    project_name: str = "home",
+    package_name: str = "",
+    model_path: str = "",
+    query: str = "",
+    source_name: str = "",
+    query_name: str = "",
+    version_id: str = "",
+    ctx: Context | None = None,
+) -> Any:
     """Execute a Malloy query.
 
     Args:
-        query: The Malloy query string to execute
+        project_name: The name of the project, defaults to "home"
+        package_name: The name of the package containing the model
+        model_path: The path to the model within the package
+        query: The Malloy query string to execute (mutually exclusive with query_name)
+        source_name: Name of the source in the model (required when using query_name)
+        query_name: Name of a query to execute on a source
+            (mutually exclusive with query)
+        version_id: Version ID of the package
         ctx: The request context with lifespan_context containing the client
 
     Returns:
         Any: Query execution result
 
     Raises:
-        MalloyError: If query execution fails
+        MalloyError: If query execution fails or parameters are invalid
     """
-    client: MalloyAPIClient = ctx.request_context.lifespan_context["client"]
+    # Input validation
+    if query and query_name:
+        raise MalloyError(
+            ERROR_QUERY_CONFLICT,
+            {"query": query, "query_name": query_name},
+        )
+
+    if query_name and not source_name:
+        raise MalloyError(
+            ERROR_MISSING_SOURCE_NAME,
+            {"query_name": query_name, "source_name": source_name},
+        )
+
+    if not query and not query_name:
+        raise MalloyError(
+            ERROR_MISSING_QUERY,
+            {},
+        )
+
+    # Get client from context
+    if ctx and ctx.request_context and "client" in ctx.request_context.lifespan_context:
+        client = ctx.request_context.lifespan_context["client"]
+    else:
+        client = connect_to_publisher()
 
     try:
-        # The test shows that execute_query expects a raw query string
-        # but type checking requires QueryParams object.
-        # Using type ignore to suppress the type checking error
-        result = client.execute_query(query)  # type: ignore
+        # Execute the query based on the provided parameters
+        # The actual implementation will depend on what the MalloyAPIClient supports
+        params = {
+            "project_name": project_name,
+            "package_name": package_name,
+            "model_path": model_path,
+            "query": query,
+            "source_name": source_name,
+            "query_name": query_name,
+            "version_id": version_id,
+        }
+
+        # Clean up empty parameters
+        params = {k: v for k, v in params.items() if v}
+
+        result = client.execute_query(**params)
         return result
     except Exception as e:
         error_msg = (
@@ -83,7 +141,17 @@ async def execute_malloy_query(query: str, ctx: Context) -> Any:
             if isinstance(e, APIError)
             else f"Failed to execute query: {e!s}"
         )
-        raise MalloyError(error_msg, {"query": query}) from e
+        raise MalloyError(
+            error_msg,
+            {
+                "project_name": project_name,
+                "package_name": package_name,
+                "model_path": model_path,
+                "query": query,
+                "source_name": source_name,
+                "query_name": query_name,
+            },
+        ) from e
 
 
 @mcp.tool()
@@ -308,11 +376,11 @@ mcp.settings.lifespan = app_lifespan
 
 # Export the FastMCP instance
 __all__ = [
-    "create_malloy_query", 
-    "execute_malloy_query", 
-    "list_projects", 
-    "list_packages", 
-    "list_models", 
-    "get_model", 
-    "mcp"
+    "create_malloy_query",
+    "execute_malloy_query",
+    "get_model",
+    "list_models",
+    "list_packages",
+    "list_projects",
+    "mcp",
 ]
