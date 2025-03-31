@@ -5,10 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from malloy_publisher_client import QueryParams
-from mcp.server.fastmcp import Context
 
 from malloy_mcp_server.errors import MalloyError
-from malloy_mcp_server.server import execute_malloy_query, connect_to_publisher
+from malloy_mcp_server.server import connect_to_publisher, execute_malloy_query
 
 
 @pytest.fixture
@@ -19,15 +18,6 @@ def mock_query_result() -> dict[str, Any]:
         "model_def": {"def": "test"},
         "query_result": [{"test": "data"}],
     }
-
-
-@pytest.fixture
-def mock_ctx(mock_context: dict[str, Any]) -> Context:
-    """Create a mock Context object."""
-    ctx = MagicMock(spec=Context)
-    ctx.request_context = MagicMock()
-    ctx.request_context.lifespan_context = mock_context
-    return ctx
 
 
 @pytest.mark.asyncio
@@ -54,9 +44,9 @@ async def test_successful_query_execution(
     assert result is not None
     mock_client.execute_query.assert_called_once_with(
         QueryParams(
-            path="test_model.malloy",
             project_name="test_project",
             package_name="test_package",
+            path="test_model.malloy",
             query="test_query",
         )
     )
@@ -87,9 +77,9 @@ async def test_query_execution_with_query_name(
     assert result is not None
     mock_client.execute_query.assert_called_once_with(
         QueryParams(
-            path="test_model.malloy",
             project_name="test_project",
             package_name="test_package",
+            path="test_model.malloy",
             source_name="test_source",
             query_name="test_named_query",
         )
@@ -119,9 +109,9 @@ async def test_model_path_only_execution(
     assert result is not None
     mock_client.execute_query.assert_called_once_with(
         QueryParams(
-            path="test_model.malloy",
             project_name="test_project",
             package_name="test_package",
+            path="test_model.malloy",
         )
     )
 
@@ -161,9 +151,8 @@ async def test_query_execution_validation_error_query_conflict() -> None:
             query_name="test_named_query",
         )
 
-    assert (
-        "Parameters 'query' and 'query_name' are mutually exclusive"
-        in str(exc_info.value)
+    assert "Parameters 'query' and 'query_name' are mutually exclusive" in str(
+        exc_info.value
     )
 
 
@@ -178,7 +167,6 @@ async def test_query_execution_validation_error_missing_source_name() -> None:
             query_name="test_named_query",
         )
 
-    assert (
-        "Parameter 'source_name' is required when using 'query_name'"
-        in str(exc_info.value)
+    assert "Parameter 'source_name' is required when using 'query_name'" in str(
+        exc_info.value
     )
