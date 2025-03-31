@@ -307,4 +307,12 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
 mcp.settings.lifespan = app_lifespan
 
 # Export the FastMCP instance
-__all__ = ["create_malloy_query", "execute_malloy_query", "mcp"]
+__all__ = [
+    "create_malloy_query", 
+    "execute_malloy_query", 
+    "list_projects", 
+    "list_packages", 
+    "list_models", 
+    "get_model", 
+    "mcp"
+]

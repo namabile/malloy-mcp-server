@@ -10,6 +10,10 @@ __version__ = "0.1.0"
 from malloy_mcp_server.server import (
     create_malloy_query,
     execute_malloy_query,
+    get_model,
+    list_models,
+    list_packages,
+    list_projects,
     mcp,
 )
 
@@ -33,4 +37,12 @@ def main() -> None:
     mcp.run(transport="stdio")
 
 
-__all__ = ["create_malloy_query", "execute_malloy_query"]
+__all__ = [
+    "create_malloy_query", 
+    "execute_malloy_query",
+    "list_projects",
+    "list_packages",
+    "list_models",
+    "get_model",
+    "mcp",
+]
