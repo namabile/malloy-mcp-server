@@ -363,7 +363,7 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
     Yields:
         dict[str, Any]: Context for the lifespan of the application
-        
+
     Raises:
         MalloyError: If initialization fails with these possible error codes:
             - CONNECTION_ERROR: Failed to connect to Malloy Publisher
@@ -375,25 +375,16 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
         projects = client.list_projects()
 
         if not projects:
-            raise MalloyError(
-                message=ERROR_NO_PROJECTS,
-                code="NOT_FOUND"
-            )
+            raise MalloyError(message=ERROR_NO_PROJECTS, code="NOT_FOUND")
 
         # Get packages for the first project
         try:
             packages = client.list_packages(projects[0].name)
             if not packages:
-                raise MalloyError(
-                    message=ERROR_NO_PACKAGES,
-                    code="NOT_FOUND"
-                )
+                raise MalloyError(message=ERROR_NO_PACKAGES, code="NOT_FOUND")
         except Exception as e:
             error_msg = f"Failed to list packages: {e!s}"
-            raise MalloyError(
-                message=error_msg,
-                code="NOT_FOUND"
-            ) from e
+            raise MalloyError(message=error_msg, code="NOT_FOUND") from e
 
         # Get models for each package
         models = []
@@ -407,10 +398,7 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
                 )
 
         if not models:
-            raise MalloyError(
-                message=ERROR_NO_MODELS,
-                code="NOT_FOUND"
-            )
+            raise MalloyError(message=ERROR_NO_MODELS, code="NOT_FOUND")
 
         context = {
             "client": client,
@@ -421,10 +409,9 @@ async def app_lifespan(_app: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
     except Exception as e:
         error_msg = format_error(
-            e if isinstance(e, MalloyError) else MalloyError(
-                message=str(e), 
-                code="APP_LIFECYCLE_ERROR"
-            )
+            e
+            if isinstance(e, MalloyError)
+            else MalloyError(message=str(e), code="APP_LIFECYCLE_ERROR")
         )
         logger.error(error_msg)
         if client:
