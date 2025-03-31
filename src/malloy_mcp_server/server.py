@@ -1,11 +1,10 @@
 """MCP server for executing Malloy queries."""
 
-import asyncio
 import logging
-import random
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, cast
+import json
 
 from malloy_publisher_client import (
     MalloyAPIClient,
@@ -13,158 +12,197 @@ from malloy_publisher_client import (
     Package,
     Project,
 )
+from malloy_publisher_client.models import CompiledModel
 from mcp.server.fastmcp import FastMCP
+from malloy_publisher_client.api_client import APIError
 
-from .errors import MalloyError, format_error
-from .resources import register_resources
+from malloy_mcp_server.errors import MalloyError, format_error
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Initialize MCP server with minimal capabilities
+mcp = FastMCP(
+    name="malloy-mcp-server",
+    description="MCP server for Malloy queries",
+    # Only declare capabilities actually used
+    capabilities={
+        "resources": {"subscribelistChanged": True},
+        "tools": {"listChanged": True},
+    },
+)
 
-async def connect_with_backoff(
-    max_retries: int = 3, base_delay: float = 0.5
-) -> Tuple[MalloyAPIClient, Project]:
-    """Connect to the Malloy publisher with exponential backoff.
+
+def connect_to_publisher(base_url: str) -> MalloyAPIClient:
+    """Connect to the Malloy Publisher API.
 
     Args:
-        max_retries: Maximum number of retry attempts
-        base_delay: Base delay between retries in seconds
+        base_url: Base URL of the API server
 
     Returns:
-        A tuple containing the client and first project
+        MalloyAPIClient: Connected API client
 
     Raises:
-        MalloyError: If connection fails after retries
+        MalloyError: If connection fails
     """
-    client = None
-    for retry in range(max_retries):
-        try:
-            client = MalloyAPIClient("http://localhost:4000")
-            projects = cast(List[Project], await cast(Awaitable[Any], client.list_projects()))
-            if projects:
-                return client, projects[0]  # Use first project
-
-            # Close client with proper error handling
-            try:
-                client.close()
-            except Exception as close_error:
-                logger.warning(f"Error closing client: {close_error}")
-            
-            client = None
-
-            # Exponential backoff with jitter
-            delay = base_delay * (2**retry) * (0.8 + 0.4 * random.random())
-            await asyncio.sleep(delay)
-
-        except Exception as e:
-            if client:
-                try:
-                    client.close()
-                except Exception as close_error:
-                    logger.warning(f"Error closing client: {close_error}")
-                client = None
-            if retry == max_retries - 1:
-                msg_part1 = "Failed to connect to Malloy publisher after "
-                msg_part2 = f"{max_retries} attempts"
-                error_msg = msg_part1 + msg_part2
-                raise MalloyError(
-                    error_msg,
-                    {
-                        "attempts": max_retries,
-                        "url": "http://localhost:4000",
-                        "error": str(e),
-                    },
-                ) from e
-
-            # Exponential backoff with jitter
-            delay = base_delay * (2**retry) * (0.8 + 0.4 * random.random())
-            await asyncio.sleep(delay)
-
-    raise MalloyError(
-        "Failed to connect to Malloy publisher",
-        {"attempts": max_retries, "url": "http://localhost:4000"},
-    )
+    try:
+        client = MalloyAPIClient(base_url)
+        # Test connection with a simple API call
+        client.list_projects()
+        logging.info(f"Connected to Malloy Publisher at {base_url}")
+        return client
+    except Exception as e:
+        if isinstance(e, APIError):
+            raise MalloyError(f"Failed to connect to Malloy Publisher: {e.message}") from e
+        raise MalloyError(f"Failed to connect to Malloy Publisher: {str(e)}") from e
 
 
-async def load_packages(client: MalloyAPIClient, project: Project) -> List[Package]:
-    """Load packages for a project.
+async def load_packages(client: MalloyAPIClient, project: Project) -> list[Package]:
+    """Load packages from the Malloy publisher.
 
     Args:
         client: The Malloy API client
-        project: The Malloy project
+        project: The project to load packages from
 
     Returns:
-        List of packages
+        list[Package]: List of packages
 
     Raises:
-        MalloyError: If loading packages fails
+        MalloyError: If packages cannot be loaded
     """
     try:
-        packages = cast(
-            List[Package], 
-            await cast(Awaitable[Any], client.list_packages(project_name=project.name))
-        )
+        packages = client.list_packages(project.name)
+        logging.info(f"Loaded {len(packages)} packages from project {project.name}")
         return packages
     except Exception as e:
-        raise MalloyError(
-            f"Failed to list packages: {str(e)}", 
-            {"project": project.name}
-        ) from e
+        if isinstance(e, APIError):
+            raise MalloyError(f"Failed to load packages: {e.message}") from e
+        raise MalloyError(f"Failed to load packages: {str(e)}") from e
 
 
 async def load_models(
-    client: MalloyAPIClient, project: Project, packages: List[Package]
-) -> List[Model]:
-    """Load models from all packages.
+    client: MalloyAPIClient, project: Project, packages: list[Package]
+) -> list[Model]:
+    """Load models from the Malloy publisher.
 
     Args:
         client: The Malloy API client
-        project: The Malloy project
+        project: The project to load models from
         packages: List of packages to load models from
 
     Returns:
-        List of models
+        list[Model]: List of models
 
     Raises:
-        MalloyError: If loading models fails
+        MalloyError: If no valid models are found
     """
-    models: List[Model] = []
-
-    for pkg in packages:
+    models: list[Model] = []
+    for package in packages:
         try:
-            pkg_models = cast(
-                List[Model], 
-                await cast(Awaitable[Any], client.list_models(
-                    project_name=project.name, 
-                    package_name=pkg.name
-                ))
-            )
-
-            for model in pkg_models:
+            package_models = client.list_models(project.name, package.name)
+            for model in package_models:
                 try:
-                    model_details = cast(
-                        Model, 
-                        await cast(Awaitable[Any], client.get_model(
-                            project_name=project.name,
-                            package_name=pkg.name,
-                            model_name=model.path,
-                        ))
-                    )
+                    model_details = client.get_model(project.name, package.name, model.path)
                     models.append(model_details)
                 except Exception as e:
-                    logger.warning(f"Failed to load model {model.path}: {str(e)}")
-
+                    logging.warning(
+                        "Failed to load model %s from package %s: %s",
+                        model.path,
+                        package.name,
+                        str(e),
+                    )
         except Exception as e:
-            logger.warning(f"Failed to process package {pkg.name}: {str(e)}")
+            logging.warning(
+                "Failed to load models from package %s: %s",
+                package.name,
+                str(e),
+            )
 
     if not models:
+        available_packages = ", ".join(p.name for p in packages)
         raise MalloyError(
-            "No valid models found",
-            {"project": project.name, "packages": [p.name for p in packages]}
+            "No valid models found in any package. "
+            f"Available packages: {available_packages}"
         )
 
+    logging.info(f"Loaded {len(models)} models from {len(packages)} packages")
     return models
+
+
+# Register resources using decorators
+@mcp.resource("packages://{project_name}")
+def get_packages(project_name: str) -> str:
+    """Get packages for a project.
+
+    Args:
+        project_name: Name of the project
+
+    Returns:
+        str: JSON string containing package information
+    """
+    client = MalloyAPIClient("http://localhost:4000")
+    try:
+        packages = client.list_packages(project_name)
+        return json.dumps([{
+            "name": pkg.name,
+            "description": pkg.description or ""
+        } for pkg in packages], indent=2)
+    finally:
+        client.close()
+
+
+@mcp.resource("models://{project_name}/{package_name}")
+def get_models(project_name: str, package_name: str) -> str:
+    """Get models for a package.
+
+    Args:
+        project_name: Name of the project
+        package_name: Name of the package
+
+    Returns:
+        str: JSON string containing model information
+    """
+    client = MalloyAPIClient("http://localhost:4000")
+    try:
+        models = client.list_models(project_name, package_name)
+        return json.dumps([{
+            "name": model.path,
+            "type": model.type,
+            "package_name": model.package_name
+        } for model in models], indent=2)
+    finally:
+        client.close()
+
+
+@mcp.resource("model://{project_name}/{package_name}/{model_path}")
+def get_model(project_name: str, package_name: str, model_path: str) -> str:
+    """Get details for a specific model.
+
+    Args:
+        project_name: Name of the project
+        package_name: Name of the package
+        model_path: Path to the model
+
+    Returns:
+        str: JSON string containing model details
+    """
+    client = MalloyAPIClient("http://localhost:4000")
+    try:
+        # Cast the result to CompiledModel since get_model returns a compiled model
+        model = cast(CompiledModel, client.get_model(project_name, package_name, model_path))
+        return json.dumps({
+            "name": model.path,
+            "type": model.type,
+            "package_name": model.package_name,
+            "malloy_version": model.malloy_version,
+            "data_styles": model.data_styles,
+            "model_def": model.model_def,
+            "sources": [source.model_dump() for source in model.sources],
+            "queries": [query.model_dump() for query in model.queries],
+            "notebook_cells": [cell.model_dump() for cell in model.notebook_cells]
+        }, indent=2)
+    finally:
+        client.close()
 
 
 @asynccontextmanager
@@ -183,19 +221,37 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
     client = None
     try:
         # Connect to Malloy publisher
-        client, project = await connect_with_backoff()
+        client = connect_to_publisher("http://localhost:4000")
 
-        # Load packages and models
-        packages = await load_packages(client, project)
-        models = await load_models(client, project, packages)
+        # Get first project
+        projects = client.list_projects()
+        if not projects:
+            raise MalloyError("No projects found")
 
-        # Register resources
-        register_resources(server, project, packages, models)
+        # Get packages for the first project
+        try:
+            packages = client.list_packages(projects[0].name)
+            if not packages:
+                raise MalloyError("No packages found")
+        except Exception as e:
+            raise MalloyError(f"Failed to list packages: {str(e)}") from e
+
+        # Get models for each package
+        models = []
+        for package in packages:
+            try:
+                package_models = client.list_models(projects[0].name, package.name)
+                models.extend(package_models)
+            except Exception as e:
+                logger.warning(f"Failed to list models for package {package.name}: {str(e)}")
+
+        if not models:
+            raise MalloyError("No valid models found")
 
         # Create minimal context for tools
         yield {
             "client": client,
-            "project_name": project.name,
+            "project_name": projects[0].name,
         }
 
     except Exception as e:
@@ -204,32 +260,17 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
         )
         logger.error(error_msg)
         if client:
-            try:
-                client.close()
-            except Exception as close_error:
-                logger.warning(f"Error closing client: {close_error}")
+            client.close()
         raise
 
     finally:
         if client:
             with suppress(Exception):
-                try:
-                    client.close()
-                except Exception as close_error:
-                    logger.warning(f"Error closing client: {close_error}")
+                client.close()
 
 
-# Initialize MCP server with minimal capabilities
-mcp = FastMCP(
-    name="malloy-mcp-server",
-    description="MCP server for Malloy queries",
-    # Only declare capabilities actually used
-    capabilities={
-        "resources": {"subscribelistChanged": True},
-        "tools": {"listChanged": True},
-    },
-    lifespan=app_lifespan,
-)
+# Set lifespan after resource registration
+mcp.settings.lifespan = app_lifespan
 
 # Export the FastMCP instance
 __all__ = ["mcp"]
