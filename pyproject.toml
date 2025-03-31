@@ -164,3 +164,4 @@ disallow_incomplete_defs = false
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term-missing"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
