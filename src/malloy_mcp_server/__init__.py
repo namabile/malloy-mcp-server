@@ -38,11 +38,11 @@ def main() -> None:
 
 
 __all__ = [
-    "create_malloy_query", 
+    "create_malloy_query",
     "execute_malloy_query",
-    "list_projects",
-    "list_packages",
-    "list_models",
     "get_model",
+    "list_models",
+    "list_packages",
+    "list_projects",
     "mcp",
 ]
